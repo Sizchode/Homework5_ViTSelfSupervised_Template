@@ -30,9 +30,10 @@ torch.manual_seed(BANNER_ID)
 # ========================================================================
 #  TASK 0: Attention map visualization
 #
-#  Visualize what ViT attention heads "look at" — before any training.
+#  Visualize what ViT attention heads "look at."
 #  We extract [class]-to-patch attention from the last transformer layer
 #  and display it in two styles: fade-to-black and grayscale heatmaps.
+#  This function is reused throughout the homework (Tasks 0, 3, 4).
 # ========================================================================
 
 # Part A: Visualize attention maps

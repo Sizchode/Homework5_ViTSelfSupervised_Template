@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # ============================================================
 # Homework 5: Vision Transformers and Self-Supervised Learning
 # CSCI1430 - Computer Vision

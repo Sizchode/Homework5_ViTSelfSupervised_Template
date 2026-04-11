@@ -42,7 +42,12 @@ echo "============================================"
 # Run from the code directory
 cd "$SLURM_SUBMIT_DIR"
 
-source ~/.local/bin/env
+# source ~/.local/bin/env
+source /users/zliu328/homework5-vitselfsupervised-Sizchode/.venv/bin/activate
+export UV_CACHE_DIR="/tmp/${USER}-uv-cache"
+mkdir -p "$UV_CACHE_DIR"
+export MPLCONFIGDIR="/tmp/mpl-${SLURM_JOB_ID:-$$}"
+mkdir -p "$MPLCONFIGDIR"
 
 # Run training
 uv run python main.py --task "$TASK"

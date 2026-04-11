@@ -28,7 +28,7 @@ ROTATION_WEIGHT_DECAY = 0.01
 # ============================================================================
 DINO_EPOCHS = 30
 DINO_LR = 5e-4
-DINO_BATCH_SIZE = 4              # Small — only 2 high-res images in dataset
+DINO_BATCH_SIZE = 4              # With 12 images: 3 batches per epoch
 
 # Multi-crop sizes
 DINO_GLOBAL_CROP_SIZE = 224       # Resolution of global crops
@@ -45,6 +45,10 @@ DINO_TEACHER_TEMP = 0.04          # Teacher temperature (sharpening)
 
 # EMA momentum for teacher update
 DINO_EMA_MOMENTUM = 0.996
+
+# Center momentum for teacher output centering (higher = slower adaptation;
+# small datasets need slow updates to avoid overcorrecting → uniform collapse)
+DINO_CENTER_MOMENTUM = 0.99
 
 # ============================================================================
 # Task 4: Transfer Evaluation

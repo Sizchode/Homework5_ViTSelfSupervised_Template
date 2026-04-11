@@ -99,17 +99,19 @@ def get_attention_weights(model, image_tensor, device='cpu'):
     def hook(module, input, output):
         # input[0] has shape (B, num_tokens, embed_dim)
         B, N, C = input[0].shape
+        head_dim = getattr(module, 'head_dim', C // module.num_heads)
 
         # Project to queries, keys, values — all heads at once
         # qkv shape after reshape: (3, B, num_heads, N, head_dim)
         qkv = module.qkv(input[0]).reshape(
-            B, N, 3, module.num_heads, module.head_dim
+            B, N, 3, module.num_heads, head_dim
         ).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)
 
         # Scaled dot-product attention: softmax(Q K^T / sqrt(d_k))
         # Result shape: (B, num_heads, N, N)
-        attn = (q * module.scale @ k.transpose(-2, -1)).softmax(dim=-1)
+        scale = getattr(module, 'scale', head_dim ** -0.5)
+        attn = ((q * scale) @ k.transpose(-2, -1)).softmax(dim=-1)
         attn_storage['attn'] = attn.detach()
 
     # Register hook on the last transformer block's attention module

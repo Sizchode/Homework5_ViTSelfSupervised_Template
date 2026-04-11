@@ -23,7 +23,7 @@ import hyperparameters as hp
 from helpers import create_vit_tiny, get_attention_weights, DINODashboard
 from hw4_code import train_loop, SceneDataset, CropRotationDataset
 
-BANNER_ID = 000000000 # <- replace with your Banner ID; drop the 'B' prefix and any leading 0s.
+BANNER_ID = 1961697 # <- replace with your Banner ID; drop the 'B' prefix and any leading 0s.
 torch.manual_seed(BANNER_ID)
 
 
@@ -80,42 +80,53 @@ def visualize_attention(model, image_tensor, save_path, style='fade', device='cp
         - For a 224px image with 16px patches: 14x14 = 196 patches.
         - Use F.interpolate to upsample, mode='bilinear' or mode='nearest'.
     """
-    # TODO:
-    #   Step 1: Extract attention maps
-    #   1. Call get_attention_weights(model, image_tensor, device)
-    #      -> (num_heads, num_tokens, num_tokens)
-    #   2. Extract [class] row: attn[:, 0, num_prefix:]
-    #      -> (num_heads, num_patches)
-    #   3. Reshape to 2D grid. The grid shape depends on the image size:
-    #          H_img, W_img = image_tensor.shape[2], image_tensor.shape[3]
-    #          patch_size = 16  # ViT-Tiny uses 16x16 patches
-    #          h, w = H_img // patch_size, W_img // patch_size
-    #      -> cls_attn.reshape(num_heads, h, w)
-    #
-    #   Step 2: Build visualization panels
-    #
-    #   Convert image_tensor[0] to numpy (H, W, 3) for display.
-    #
-    #   Implement style='gray' first — simpler:
-    #   4. For each head:
-    #      a. Rescale attention to [0, 1] (see note above).
-    #      b. Nearest-neighbor upsample: F.interpolate(..., mode='nearest')
-    #      -> produces a list of upsampled attention maps (as numpy arrays)
-    #
-    #   Then add style='fade':
-    #   4. For each head:
-    #      a. Rescale attention to [0, 1] (see note above).
-    #      b. Bilinear upsample: F.interpolate(..., mode='bilinear')
-    #      c. Fade the input image = image * attn_up[:, :, np.newaxis]
-    #      -> produces a list of faded images (as numpy arrays)
-    #
-    #   Step 3: Make figure and save
-    #   5. fig, axes = plt.subplots(1, num_heads + 1, ...)
-    #      First panel: original image. Remaining panels: attention maps.
-    #   6. imshow each panel. For 'gray': cmap='gray', vmin=0, vmax=1.
-    #   7. fig.savefig(save_path, ...) then plt.close(fig)
+    image_tensor = image_tensor.to(device)
+    attn = get_attention_weights(model, image_tensor, device=device)
+    num_heads = attn.shape[0]
+    num_prefix = getattr(model, 'num_prefix_tokens', 1)
+    patch_size = 16
+    h_img, w_img = image_tensor.shape[2], image_tensor.shape[3]
+    h_patches, w_patches = h_img // patch_size, w_img // patch_size
 
-    raise NotImplementedError
+    cls_attn = attn[:, 0, num_prefix:].reshape(num_heads, h_patches, w_patches)
+    image_np = image_tensor[0].detach().cpu().permute(1, 2, 0).numpy().clip(0.0, 1.0)
+
+    panels = []
+    for head_idx in range(num_heads):
+        head = cls_attn[head_idx]
+        head = (head - head.min()) / (head.max() - head.min() + 1e-8)
+        upsample_mode = 'nearest' if style == 'gray' else 'bilinear'
+        upsampled = F.interpolate(
+            head.unsqueeze(0).unsqueeze(0),
+            size=(h_img, w_img),
+            mode=upsample_mode,
+            align_corners=False if upsample_mode == 'bilinear' else None,
+        )[0, 0].cpu().numpy()
+
+        if style == 'gray':
+            panels.append(upsampled)
+        elif style == 'fade':
+            panels.append(image_np * upsampled[..., None])
+        else:
+            raise ValueError(f"Unknown attention style: {style}")
+
+    os.makedirs(os.path.dirname(save_path) or '.', exist_ok=True)
+    fig, axes = plt.subplots(1, num_heads + 1, figsize=(4 * (num_heads + 1), 4))
+    axes[0].imshow(image_np)
+    axes[0].set_title('Image')
+    axes[0].axis('off')
+
+    for head_idx, panel in enumerate(panels, start=1):
+        if style == 'gray':
+            axes[head_idx].imshow(panel, cmap='gray', vmin=0.0, vmax=1.0)
+        else:
+            axes[head_idx].imshow(panel)
+        axes[head_idx].set_title(f'Head {head_idx}')
+        axes[head_idx].axis('off')
+
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=180, bbox_inches='tight')
+    plt.close(fig)
 
 
 # ========================================================================
@@ -157,38 +168,62 @@ class DINOMultiCropDataset(Dataset):
     def __init__(self, device, data_dir, global_crop_size=hp.DINO_GLOBAL_CROP_SIZE,
                  local_crop_size=hp.DINO_LOCAL_CROP_SIZE,
                  num_local_crops=hp.DINO_NUM_LOCAL_CROPS):
-        # TODO:
-        #   1. Load all image paths from data_dir/train/ using ImageFolder.
-        #      Store as self.image_paths.
-        #   2. Store self.num_local_crops and self.device.
-        #   3. Define self.global_transform and self.local_transform
-        #      as transforms.Compose pipelines (see __getitem__ for usage).
+        train_root = os.path.join(data_dir, 'train')
+        image_folder = ImageFolder(train_root)
+        self.image_paths = [path for path, _ in image_folder.samples]
 
-        raise NotImplementedError
+        highres_dir = os.path.join(os.path.dirname(data_dir), 'highres-images')
+        if os.path.isdir(highres_dir):
+            for f in sorted(os.listdir(highres_dir)):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    self.image_paths.append(os.path.join(highres_dir, f))
+
+        self.num_local_crops = num_local_crops
+        self.device = device
+
+        augment = [
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply(
+                [transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)],
+                p=0.8,
+            ),
+            transforms.RandomGrayscale(p=0.2),
+        ]
+
+        self.global_transform = transforms.Compose([
+            transforms.RandomResizedCrop(
+                global_crop_size,
+                scale=(0.4, 1.0),
+                interpolation=transforms.InterpolationMode.BICUBIC,
+            ),
+            *augment,
+            transforms.GaussianBlur(kernel_size=23, sigma=(0.1, 2.0)),
+            transforms.ToTensor(),
+        ])
+
+        self.local_transform = transforms.Compose([
+            transforms.RandomResizedCrop(
+                local_crop_size,
+                scale=(0.05, 0.4),
+                interpolation=transforms.InterpolationMode.BICUBIC,
+            ),
+            *augment,
+            transforms.ToTensor(),
+        ])
 
     def __len__(self):
-        # TODO
-        raise NotImplementedError
+        return len(self.image_paths)
 
     def __getitem__(self, idx):
         """Return a list of crops: [global_1, global_2, local_1, ..., local_N].
 
         Each crop is a (3, crop_size, crop_size) tensor in [0, 1].
         """
-        # TODO:
-        #   1. Load the image at self.image_paths[idx] as a PIL Image (RGB).
-        #   2. Generate 2 global crops (large views of the image).
-        #   3. Generate num_local_crops local crops (small views).
-        #
-        #   Hint: global crops should cover most of the image (40-100% area),
-        #   local crops should be much smaller (5-40% area).
-        #   See: transforms.RandomResizedCrop, transforms.Compose, transforms.ToTensor
-
-        #   4. Optional augmentations (applied before ToTensor in each transform):
-        #      horizontal flip, color jitter, random grayscale, gaussian blur.
-        #   5. Return the list: [global_1, global_2, local_1, ..., local_N]
-
-        raise NotImplementedError
+        with Image.open(self.image_paths[idx]) as image:
+            image = image.convert('RGB')
+            crops = [self.global_transform(image) for _ in range(2)]
+            crops.extend(self.local_transform(image) for _ in range(self.num_local_crops))
+        return crops
 
 
 
@@ -309,4 +344,119 @@ def t3_dino_pretrain(dino_data, device, approaches):
     #          results_dir/attention_maps_fade.png      (style='fade')
     #          results_dir/attention_maps_grayscale.png (style='gray')
 
-    pass
+    hidden_dim = hp.DINO_HIDDEN_DIM
+    out_dim = hp.DINO_OUT_DIM
+    center = torch.zeros(out_dim, device=device)
+    center_momentum = getattr(hp, 'DINO_CENTER_MOMENTUM', 0.9)
+
+    def make_projection_head(in_dim):
+        return nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, out_dim),
+        )
+
+    student = ViTEncoder(make_projection_head(192)).to(device)
+    teacher = copy.deepcopy(student).to(device)
+    for param in teacher.parameters():
+        param.requires_grad = False
+    teacher.eval()
+
+    optimizer = torch.optim.AdamW(student.parameters(), lr=hp.DINO_LR, weight_decay=1e-4)
+    loader = DataLoader(
+        dino_data,
+        batch_size=hp.DINO_BATCH_SIZE,
+        shuffle=True,
+        num_workers=0,
+        collate_fn=list,
+    )
+
+    loss_curve = []
+    for epoch in range(hp.DINO_EPOCHS):
+        student.train()
+        epoch_loss = 0.0
+        num_batches = 0
+        last_student_out = None
+        last_teacher_out = None
+
+        for batch in loader:
+            crop_batches = [
+                torch.stack([sample[crop_idx] for sample in batch]).to(device, non_blocking=True)
+                for crop_idx in range(2 + dino_data.num_local_crops)
+            ]
+            global_crops = crop_batches[:2]
+
+            with torch.no_grad():
+                teacher_outs = [teacher(crop) for crop in global_crops]
+
+            student_outs = [student(crop) for crop in crop_batches]
+
+            loss = 0.0
+            n_terms = 0
+            for teacher_idx, teacher_out in enumerate(teacher_outs):
+                teacher_probs = torch.softmax(
+                    (teacher_out - center) / hp.DINO_TEACHER_TEMP, dim=-1
+                ).detach()
+                for student_idx, student_out in enumerate(student_outs):
+                    if student_idx < len(teacher_outs) and student_idx == teacher_idx:
+                        continue
+                    loss = loss + (
+                        -(teacher_probs * F.log_softmax(student_out / hp.DINO_STUDENT_TEMP, dim=-1))
+                        .sum(dim=-1)
+                        .mean()
+                    )
+                    n_terms += 1
+
+            loss = loss / max(n_terms, 1)
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            nn.utils.clip_grad_norm_(student.parameters(), max_norm=3.0)
+            optimizer.step()
+
+            with torch.no_grad():
+                teacher_batch_mean = torch.cat(teacher_outs, dim=0).mean(dim=0)
+                center = center_momentum * center + (1.0 - center_momentum) * teacher_batch_mean
+
+                for teacher_param, student_param in zip(teacher.parameters(), student.parameters()):
+                    teacher_param.data.mul_(hp.DINO_EMA_MOMENTUM).add_(
+                        student_param.data, alpha=(1.0 - hp.DINO_EMA_MOMENTUM)
+                    )
+
+            epoch_loss += loss.item()
+            num_batches += 1
+            last_student_out = student_outs[0].detach()
+            last_teacher_out = teacher_outs[0].detach()
+
+        avg_loss = epoch_loss / max(num_batches, 1)
+        loss_curve.append(avg_loss)
+        print(f"[t3_dino] Epoch {epoch + 1}/{hp.DINO_EPOCHS}  Loss: {avg_loss:.4f}", flush=True)
+
+        dashboard.update(
+            epoch,
+            avg_loss,
+            last_student_out,
+            last_teacher_out,
+            center=center,
+            encoder=student.encoder,
+            ema_momentum=hp.DINO_EMA_MOMENTUM,
+        )
+
+    torch.save(student.encoder.state_dict(), approaches['dino'].weights)
+    np.save(approaches['dino'].curve_train, np.array(loss_curve, dtype=np.float32))
+    dashboard.save_attention_evolution()
+    visualize_attention(
+        student.encoder,
+        sample_img.to(device),
+        os.path.join(results_dir, 'attention_maps_fade.png'),
+        style='fade',
+        device=device,
+    )
+    visualize_attention(
+        student.encoder,
+        sample_img.to(device),
+        os.path.join(results_dir, 'attention_maps_grayscale.png'),
+        style='gray',
+        device=device,
+    )

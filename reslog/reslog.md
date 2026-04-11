@@ -1,42 +1,48 @@
 # HW5 Results Log
 
-<!-- Include your plots and brief captions here. Anonymous grading — don't include your name. -->
-
 ## Task 0: Attention Map Visualization
 
-<!-- Include attention maps from pretrained and random ViTs (both fade and gray styles). -->
-<!-- What do you observe? How do the heads differ? -->
+Pretrained and random attention maps are included below.
+
+![Pretrained fade attention](../code/results/attn_fade_pretrained_ameyoko.png)
+![Random fade attention](../code/results/attn_fade_random_ameyoko.png)
+![Pretrained gray attention](../code/results/attn_gray_pretrained_ameyoko.png)
+![Random gray attention](../code/results/attn_gray_random_ameyoko.png)
+
+The pretrained ViT attention maps are more structured than the random model, but the three heads still look fairly similar. The random model is more diffuse and noisy, with weaker spatial focus.
 
 ## Task 1: End-to-End ViT
 
-<!-- Training curves (train + val accuracy vs epoch). -->
-<!-- How does this compare to your HW4 CNN? -->
+![Task 1 training curve](task1_training_curve.png)
+
+The end-to-end ViT reached about 34% validation accuracy, which matches the expected range. This is much lower than the HW4 CNN baseline, which supports the claim that ViTs struggle more than CNNs in this small-data setting.
 
 ## Task 2: Rotation Prediction
 
-<!-- Attention maps from the rotation-pretrained ViT. -->
-<!-- Do the heads look different from random? -->
+Rotation-pretrained attention maps are included in the Task 4 comparison figures below. The frozen rotation probe reached about 28.7% validation accuracy, clearly above the frozen random baseline, so the rotation task learned useful features.
 
 ## Task 3: Mini-DINO Pretraining
 
-<!-- DINO training loss curve. -->
-<!-- Dashboard screenshot showing training dynamics. -->
-<!-- Attention map visualizations showing head specialization. -->
+![Task 3 DINO loss curve](task3_dino_loss_curve.png)
+![Task 3 DINO dashboard](../code/results/dino_dashboard.png)
+![Task 3 fade attention](../code/results/attention_maps_fade.png)
+![Task 3 grayscale attention](../code/results/attention_maps_grayscale.png)
+
+The DINO loss stayed well below log(K) instead of collapsing to 0 or 5.5, and the dashboard showed some evolving attention structure. However, the learned encoder did not transfer well to 15-scenes, so this mini-DINO setup did not produce strong transferable features in my final runs.
 
 ## Task 4: Transfer Evaluation
 
-<!-- All five validation accuracy curves on one plot. -->
-<!-- Side-by-side attention maps: random / rotation / DINO / DINOv3 (both styles). -->
-<!-- Brief description of what you found. -->
+![Task 4 transfer curves](task4_transfer_curves.png)
+![Task 4 attention comparison](../code/results/compare_01_barcelona_market_gray_random.png)
+![Task 4 attention comparison](../code/results/compare_01_barcelona_market_gray_rotation.png)
+![Task 4 attention comparison](../code/results/compare_01_barcelona_market_gray_dino.png)
+![Task 4 attention comparison](../code/results/compare_01_barcelona_market_gray_dinov3.png)
+
+The frozen random probe performed near chance, while frozen rotation improved substantially. My mini-DINO model did not improve transfer over random, but the frozen DINOv3 model was by far the strongest and produced the most semantic attention maps.
 
 ## Extra Credit
 
-<!-- Document any extra credit attempted, where it is in your code, and its results. -->
-
-
-
-
-
+No extra credit attempted.
 
 ---
 # CSCI 1430 Results Log

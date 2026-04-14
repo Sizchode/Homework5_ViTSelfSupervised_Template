@@ -1,8 +1,8 @@
 __pycache__/
 *.pyc
 _cache/
-code/results/*.pt
-code/results/*.npy
+# code/results/*.pt
+# code/results/*.npy
 code/results/*.json
 *.aux
 *.fdb_latexmk

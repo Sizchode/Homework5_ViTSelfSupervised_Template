@@ -27,8 +27,9 @@ ROTATION_WEIGHT_DECAY = 0.01
 # Task 3: Mini-DINO Pretraining
 # ============================================================================
 DINO_EPOCHS = 30
-DINO_LR = 5e-4
-DINO_BATCH_SIZE = 4              # With 12 images: 3 batches per epoch
+DINO_LR = 5e-5
+DINO_BATCH_SIZE = 12
+DINO_NUM_SAMPLES = 500            # Samples per epoch (>> num images)
 
 # Multi-crop sizes
 DINO_GLOBAL_CROP_SIZE = 224       # Resolution of global crops
@@ -37,18 +38,22 @@ DINO_NUM_LOCAL_CROPS = 6          # Number of local crops per image
 
 # Projection head
 DINO_HIDDEN_DIM = 256             # Hidden dimension of projection MLP
+DINO_BOTTLENECK_DIM = 128
 DINO_OUT_DIM = 256                # Output dimension K (the "vocabulary" size)
 
 # Temperatures
+DINO_TEACHER_TEMP_WARMUP = 0.07
 DINO_STUDENT_TEMP = 0.1           # Student temperature (fixed)
 DINO_TEACHER_TEMP = 0.04          # Teacher temperature (sharpening)
+
+# Use ImageNet-pretrained ViT-Tiny as initialization
+DINO_PRETRAINED = True
 
 # EMA momentum for teacher update
 DINO_EMA_MOMENTUM = 0.996
 
-# Center momentum for teacher output centering (higher = slower adaptation;
-# small datasets need slow updates to avoid overcorrecting → uniform collapse)
-DINO_CENTER_MOMENTUM = 0.99
+# Center momentum (EMA of teacher outputs, prevents collapse)
+DINO_CENTER_MOMENTUM = 0.95
 
 # ============================================================================
 # Task 4: Transfer Evaluation

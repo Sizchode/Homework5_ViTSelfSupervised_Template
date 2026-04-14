@@ -8,8 +8,8 @@
 #
 # Usage:
 #   sbatch slurm_train.sh t0_attention   # runs Task 0 Attention Maps
-#   sbatch slurm_train.sh t1_rotation    # runs Task 1 End-to-end
-#   sbatch slurm_train.sh t2_transfer    # runs Task 2 Rotation Pretraining
+#   sbatch slurm_train.sh t1_endtoend    # runs Task 1 End-to-end
+#   sbatch slurm_train.sh t2_rotation    # runs Task 2 Rotation Pretraining
 #   sbatch slurm_train.sh t3_dino        # runs Task 3 Mini-DINO Pretraining
 #   sbatch slurm_train.sh t4_transfer    # runs Task 4 Transfer Learning Evaluation
 #
@@ -42,12 +42,9 @@ echo "============================================"
 # Run from the code directory
 cd "$SLURM_SUBMIT_DIR"
 
-# source ~/.local/bin/env
-source /users/zliu328/homework5-vitselfsupervised-Sizchode/.venv/bin/activate
-export UV_CACHE_DIR="/tmp/${USER}-uv-cache"
-mkdir -p "$UV_CACHE_DIR"
-export MPLCONFIGDIR="/tmp/mpl-${SLURM_JOB_ID:-$$}"
-mkdir -p "$MPLCONFIGDIR"
+if [[ -f "/users/zliu328/homework5-vitselfsupervised-Sizchode/.venv/bin/activate" ]]; then
+  source /users/zliu328/homework5-vitselfsupervised-Sizchode/.venv/bin/activate
+fi
 
 # Run training
 uv run python main.py --task "$TASK"
